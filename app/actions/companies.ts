@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { encryptField, maskBankNumber } from "@/lib/encryption"
 import { writeAuditLog } from "@/lib/audit"
 import { companySchema } from "@/lib/validations"
@@ -66,8 +66,16 @@ export async function createCompanyAction(data: CompanyFormData) {
 
     if (error) return { error: error.message }
 
-    // Grant the creating user access
-    await supabase.from("user_company_access").insert({
+    // Grant the creating user access (if they aren't an admin, or even if they are)
+    // Actually, Admin can insert into UCA via RLS. Finance cannot by default.
+    // If the user isn't an Admin, we might get an RLS error here because uca_insert is Admin-only.
+    // However, if we're calling this from the server action using the standard client, it obeys RLS.
+    // To allow Finance to create a company and instantly gain access:
+    // We should either update the RLS, or use a service role client to insert the UCA record.
+    // Since the system design allows Finance to create companies (companies_insert explicitly allows Finance),
+    // they MUST be able to see the company they just created.
+    const serviceClient = await createServiceClient()
+    await serviceClient.from("user_company_access").insert({
         user_id: user.id,
         company_id: company.id,
     })
