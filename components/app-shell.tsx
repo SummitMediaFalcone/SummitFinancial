@@ -182,7 +182,7 @@ function AppSidebar({ userEmail }: { userEmail?: string | null }) {
                       await logoutAction()
                     })
                   }
-                  className="text-destructive focus:text-destructive"
+                  className="text-destructive focus:text-destructive cursor-pointer"
                 >
                   <LogOut className="mr-2 size-4" />
                   Sign Out
