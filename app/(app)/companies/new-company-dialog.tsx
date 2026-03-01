@@ -35,6 +35,9 @@ export function NewCompanyDialog() {
             address_city: formData.get("city") as string,
             address_state: formData.get("state") as string,
             address_zip: formData.get("zip") as string,
+            check_layout_type: "top",
+            print_offset_x: 0,
+            print_offset_y: 0,
         })
 
         if (result.error) {
@@ -54,7 +57,7 @@ export function NewCompanyDialog() {
                     Add Company
                 </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent aria-describedby={undefined}>
                 <DialogHeader>
                     <DialogTitle>Add New Company</DialogTitle>
                     <DialogDescription>
@@ -62,7 +65,11 @@ export function NewCompanyDialog() {
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    {error && <div className="text-sm font-semibold text-destructive">{error}</div>}
+                    {error && (
+                        <div className="rounded-md bg-destructive/15 p-3 text-sm font-semibold text-destructive">
+                            {error}
+                        </div>
+                    )}
                     <div className="flex flex-col gap-2">
                         <Label htmlFor="name">Company Name *</Label>
                         <Input id="name" name="name" placeholder="Acme Corp LLC" required />

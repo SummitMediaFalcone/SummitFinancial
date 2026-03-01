@@ -69,7 +69,7 @@ export function NewContractorDialog({ activeCompanyId }: { activeCompanyId?: str
                     Add Contractor
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent aria-describedby={undefined} className="max-w-lg">
                 <DialogHeader>
                     <DialogTitle>Add New Contractor</DialogTitle>
                     <DialogDescription>
@@ -77,7 +77,11 @@ export function NewContractorDialog({ activeCompanyId }: { activeCompanyId?: str
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    {error && <div className="text-sm font-semibold text-destructive">{error}</div>}
+                    {error && (
+                        <div className="rounded-md bg-destructive/15 p-3 text-sm font-semibold text-destructive">
+                            {error}
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-2">

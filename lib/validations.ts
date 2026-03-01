@@ -12,26 +12,28 @@ export const loginSchema = z.object({
 // ─── Company ─────────────────────────────────────────────────────────────────
 
 export const companySchema = z.object({
-    name: z.string().min(2, "Company name is required"),
-    dba: z.string().optional(),
+    name: z.string().trim().min(2, "Company name is required"),
+    dba: z.string().trim().optional(),
     ein: z
         .string()
-        .regex(/^\d{2}-\d{7}$/, "EIN must be in format XX-XXXXXXX")
+        .trim()
+        .regex(/^\d{2}-\d{7}$/, "EIN must be in format XX-XXXXXXX (with dash)")
         .optional()
         .or(z.literal("")),
-    phone: z.string().min(7, "Phone is required"),
-    address_line1: z.string().min(3, "Address is required"),
-    address_line2: z.string().optional(),
-    address_city: z.string().min(2, "City is required"),
-    address_state: z.string().length(2, "State must be 2 letters"),
-    address_zip: z.string().regex(/^\d{5}(-\d{4})?$/, "Invalid ZIP"),
-    bank_name: z.string().optional(),
+    phone: z.string().trim().min(7, "Phone is required"),
+    address_line1: z.string().trim().min(3, "Address is required"),
+    address_line2: z.string().trim().optional(),
+    address_city: z.string().trim().min(2, "City is required"),
+    address_state: z.string().trim().min(2, "State must be exactly 2 letters").max(2),
+    address_zip: z.string().trim().regex(/^\d{5}(-\d{4})?$/, "Invalid ZIP code (use 5 digits)"),
+    bank_name: z.string().trim().optional(),
     routing_number: z
         .string()
-        .regex(/^\d{9}$/, "Routing number must be 9 digits")
+        .trim()
+        .regex(/^\d{9}$/, "Routing number must be exactly 9 digits")
         .optional()
         .or(z.literal("")),
-    account_number: z.string().optional(),
+    account_number: z.string().trim().optional(),
     check_layout_type: z.enum(["top", "3-per-page"]).default("top"),
     print_offset_x: z.coerce.number().default(0),
     print_offset_y: z.coerce.number().default(0),
