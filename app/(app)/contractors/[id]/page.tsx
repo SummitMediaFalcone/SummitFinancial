@@ -1,8 +1,6 @@
-"use client"
-
-import { use } from "react"
+import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Mail, Phone, MapPin, FileText, Upload, Building2 } from "lucide-react"
+import { ArrowLeft, Mail, Phone, MapPin, FileText } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,15 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  getContractorById,
-  getContractorName,
-  getLinkedCompanies,
-  getCompanyById,
-  getPaymentsForContractor,
-  formatCents,
-  formatAddress,
-} from "@/lib/mock-data"
+import { createClient } from "@/lib/supabase/server"
+import { formatCents, getContractorDisplayName } from "@/lib/utils"
 
 const statusColors: Record<string, string> = {
   DRAFT: "bg-muted text-muted-foreground",
@@ -31,18 +22,39 @@ const statusColors: Record<string, string> = {
   CLEARED: "bg-success/10 text-success",
 }
 
-export default function ContractorDetailPage({
+function formatAddress(line1: string, line2: string | null, city: string, state: string, zip: string) {
+  const street = line2 ? `${line1} ${line2}` : line1
+  return `${street}, ${city}, ${state} ${zip}`
+}
+
+export default async function ContractorDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = use(params)
-  const contractor = getContractorById(id)
+  const { id } = await params
+  const supabase = await createClient()
 
-  if (!contractor) {
+  // Fetch contractor heavily joined with companies and payments
+  const { data: contractor, error } = await supabase
+    .from("contractors")
+    .select(`
+      *,
+      contractor_company_links (
+        companies (id, name, dba)
+      ),
+      payments (
+        id, amount_cents, payment_date, check_number, status, memo,
+        companies (id, name)
+      )
+    `)
+    .eq("id", id)
+    .single()
+
+  if (error || !contractor) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <p className="text-muted-foreground">Contractor not found</p>
+        <p className="text-muted-foreground">Contractor not found or access denied</p>
         <Button variant="ghost" asChild className="mt-4">
           <Link href="/contractors">
             <ArrowLeft className="mr-2 size-4" />
@@ -53,12 +65,14 @@ export default function ContractorDetailPage({
     )
   }
 
-  const linkedCompanyIds = getLinkedCompanies(contractor.id)
-  const linkedCompanies = linkedCompanyIds.map(getCompanyById).filter(Boolean)
-  const allPayments = getPaymentsForContractor(contractor.id)
+  const linkedCompanies = contractor.contractor_company_links
+    .map((l: any) => l.companies)
+    .filter(Boolean)
+
+  const allPayments = contractor.payments || []
   const totalPaid = allPayments
-    .filter((p) => p.status !== "VOID")
-    .reduce((s, p) => s + p.amountCents, 0)
+    .filter((p: any) => p.status !== "VOID")
+    .reduce((s: number, p: any) => s + p.amount_cents, 0)
 
   return (
     <div className="flex flex-col gap-6">
@@ -69,10 +83,16 @@ export default function ContractorDetailPage({
           </Link>
         </Button>
         <div>
-          <h2 className="text-xl font-bold text-foreground">{getContractorName(contractor)}</h2>
-          {contractor.businessName && (
+          <h2 className="text-xl font-bold text-foreground">
+            {getContractorDisplayName({
+              first_name: contractor.first_name,
+              last_name: contractor.last_name,
+              business_name: contractor.business_name,
+            })}
+          </h2>
+          {contractor.business_name && (
             <p className="text-sm text-muted-foreground">
-              {contractor.firstName} {contractor.lastName}
+              {contractor.first_name} {contractor.last_name}
             </p>
           )}
         </div>
@@ -97,13 +117,14 @@ export default function ContractorDetailPage({
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <MapPin className="size-4 shrink-0" />
-              {formatAddress(contractor.address)}
+              {formatAddress(
+                contractor.address_line1,
+                contractor.address_line2,
+                contractor.address_city,
+                contractor.address_state,
+                contractor.address_zip
+              )}
             </div>
-            {contractor.notes && (
-              <p className="text-xs text-muted-foreground border-t pt-3 mt-1">
-                {contractor.notes}
-              </p>
-            )}
           </CardContent>
         </Card>
 
@@ -115,15 +136,15 @@ export default function ContractorDetailPage({
           <CardContent className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">TIN Type</span>
-              <Badge variant="outline">{contractor.tinType}</Badge>
+              <Badge variant="outline">{contractor.tin_type}</Badge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">TIN</span>
-              <span className="font-mono text-sm text-foreground">{contractor.tinMasked}</span>
+              <span className="font-mono text-sm text-foreground">{contractor.tin_masked}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">W-9 Status</span>
-              {contractor.w9FileUrl ? (
+              {contractor.w9_file_path ? (
                 <Badge variant="secondary" className="bg-success/10 text-success">
                   <FileText className="mr-1 size-3" />
                   On file
@@ -134,9 +155,8 @@ export default function ContractorDetailPage({
                 </Badge>
               )}
             </div>
-            <Button variant="outline" size="sm" className="mt-2">
-              <Upload className="mr-2 size-4" />
-              Upload W-9
+            <Button variant="outline" size="sm" className="mt-2" disabled>
+              W-9 System Coming Soon
             </Button>
           </CardContent>
         </Card>
@@ -150,27 +170,26 @@ export default function ContractorDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            {linkedCompanies.map((c) => {
-              if (!c) return null
+            {linkedCompanies.map((c: any) => {
               const companyPayments = allPayments
-                .filter((p) => p.companyId === c.id && p.status !== "VOID")
-                .reduce((s, p) => s + p.amountCents, 0)
+                .filter((p: any) => p.companies?.id === c.id && p.status !== "VOID")
+                .reduce((s: number, p: any) => s + p.amount_cents, 0)
               return (
                 <Link
                   key={c.id}
                   href={`/companies/${c.id}`}
                   className="flex items-center justify-between rounded-md border p-3 hover:bg-accent/50 transition-colors"
                 >
-                  <div className="flex items-center gap-2">
-                    <Building2 className="size-4 text-primary" />
-                    <span className="text-sm font-medium text-foreground">{c.name}</span>
-                  </div>
+                  <span className="text-sm font-medium text-foreground">{c.name}</span>
                   <span className="text-sm tabular-nums text-muted-foreground">
                     {formatCents(companyPayments)}
                   </span>
                 </Link>
               )
             })}
+            {linkedCompanies.length === 0 && (
+              <p className="text-sm text-muted-foreground py-2 text-center">No companies linked.</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -194,27 +213,31 @@ export default function ContractorDetailPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {allPayments.map((p) => {
-                const company = getCompanyById(p.companyId)
-                return (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-muted-foreground">{p.paymentDate}</TableCell>
-                    <TableCell className="text-foreground">{company?.name ?? "Unknown"}</TableCell>
-                    <TableCell className="text-muted-foreground">{p.memo}</TableCell>
-                    <TableCell className="font-mono text-muted-foreground">
-                      {p.checkNumber ?? "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className={statusColors[p.status]}>
-                        {p.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums text-foreground">
-                      {formatCents(p.amountCents)}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
+              {allPayments.map((p: any) => (
+                <TableRow key={p.id}>
+                  <TableCell className="text-muted-foreground">{p.payment_date}</TableCell>
+                  <TableCell className="text-foreground">{p.companies?.name ?? "Unknown"}</TableCell>
+                  <TableCell className="text-muted-foreground">{p.memo}</TableCell>
+                  <TableCell className="font-mono text-muted-foreground">
+                    {p.check_number ?? "-"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className={statusColors[p.status]}>
+                      {p.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums text-foreground">
+                    {formatCents(p.amount_cents)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {allPayments.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                    No payments issued yet.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

@@ -1,8 +1,6 @@
-"use client"
-
-import { use, useState } from "react"
+import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Building2, Users, CreditCard, Receipt, Settings, MapPin, Phone } from "lucide-react"
+import { ArrowLeft, Building2, MapPin, Phone } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,17 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  getCompanyById,
-  getLinkedContractors,
-  getPaymentsForCompany,
-  getExpensesForCompany,
-  getContractorById,
-  getContractorName,
-  formatCents,
-  formatAddress,
-} from "@/lib/mock-data"
-import type { Company } from "@/lib/types"
+import { createClient } from "@/lib/supabase/server"
+import { formatCents } from "@/lib/utils"
 
 const statusColors: Record<string, string> = {
   DRAFT: "bg-muted text-muted-foreground",
@@ -37,18 +26,42 @@ const statusColors: Record<string, string> = {
   CLEARED: "bg-success/10 text-success",
 }
 
-export default function CompanyDetailPage({
+function formatAddress(line1: string, line2: string | null, city: string, state: string, zip: string) {
+  const street = line2 ? `${line1} ${line2}` : line1
+  return `${street}, ${city}, ${state} ${zip}`
+}
+
+export default async function CompanyDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = use(params)
-  const company = getCompanyById(id)
+  const { id } = await params
+  const supabase = await createClient()
 
-  if (!company) {
+  const { data: company, error } = await supabase
+    .from("companies")
+    .select(`
+      *,
+      contractor_company_links (
+        contractor_id,
+        contractors (id, first_name, last_name, business_name, email, tin_masked)
+      ),
+      payments (
+        id, amount_cents, payment_date, check_number, status, memo,
+        contractors (first_name, last_name, business_name)
+      ),
+      expenses (
+        id, amount_cents, expense_date, vendor, category, method
+      )
+    `)
+    .eq("id", id)
+    .single()
+
+  if (error || !company) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <p className="text-muted-foreground">Company not found</p>
+        <p className="text-muted-foreground">Company not found or access denied</p>
         <Button variant="ghost" asChild className="mt-4">
           <Link href="/companies">
             <ArrowLeft className="mr-2 size-4" />
@@ -59,10 +72,12 @@ export default function CompanyDetailPage({
     )
   }
 
-  const linkedContractorIds = getLinkedContractors(id)
-  const linkedContractors = linkedContractorIds.map(getContractorById).filter(Boolean)
-  const companyPayments = getPaymentsForCompany(id)
-  const companyExpenses = getExpensesForCompany(id)
+  const linkedContractors = company.contractor_company_links
+    .map((l: any) => l.contractors)
+    .filter(Boolean)
+
+  const companyPayments = company.payments || []
+  const companyExpenses = company.expenses || []
 
   return (
     <div className="flex flex-col gap-6">
@@ -103,14 +118,14 @@ export default function CompanyDetailPage({
               <CardContent className="flex flex-col gap-3 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="size-4 shrink-0" />
-                  {formatAddress(company.address)}
+                  {formatAddress(company.address_line1, company.address_line2, company.address_city, company.address_state, company.address_zip)}
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="size-4 shrink-0" />
                   {company.phone}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono">EIN: {company.einMasked}</Badge>
+                  <Badge variant="outline" className="font-mono">EIN: {company.ein_masked}</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -119,9 +134,9 @@ export default function CompanyDetailPage({
                 <CardTitle className="text-sm text-foreground">Banking</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-                <p><span className="font-medium text-foreground">Bank:</span> {company.bankName || "Not set"}</p>
-                <p><span className="font-medium text-foreground">Routing:</span> {company.routingMasked || "****"}</p>
-                <p><span className="font-medium text-foreground">Account:</span> {company.accountMasked || "****"}</p>
+                <p><span className="font-medium text-foreground">Bank:</span> {company.bank_name || "Not set"}</p>
+                <p><span className="font-medium text-foreground">Routing:</span> {company.routing_masked || "****"}</p>
+                <p><span className="font-medium text-foreground">Account:</span> {company.account_masked || "****"}</p>
               </CardContent>
             </Card>
             <Card>
@@ -136,7 +151,7 @@ export default function CompanyDetailPage({
                 <div>
                   <p className="text-muted-foreground">Total Paid</p>
                   <p className="text-2xl font-bold text-foreground">
-                    {formatCents(companyPayments.filter(p => p.status !== "VOID").reduce((s, p) => s + p.amountCents, 0))}
+                    {formatCents(companyPayments.filter((p: any) => p.status !== "VOID").reduce((s: number, p: any) => s + p.amount_cents, 0))}
                   </p>
                 </div>
                 <div>
@@ -146,7 +161,7 @@ export default function CompanyDetailPage({
                 <div>
                   <p className="text-muted-foreground">Expenses</p>
                   <p className="text-2xl font-bold text-foreground">
-                    {formatCents(companyExpenses.reduce((s, e) => s + e.amountCents, 0))}
+                    {formatCents(companyExpenses.reduce((s: number, e: any) => s + e.amount_cents, 0))}
                   </p>
                 </div>
               </CardContent>
@@ -163,25 +178,25 @@ export default function CompanyDetailPage({
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>TIN</TableHead>
-                    <TableHead className="text-right">Total Paid</TableHead>
+                    <TableHead className="text-right">Total Paid by Company</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {linkedContractors.map((c) => {
-                    if (!c) return null
+                  {linkedContractors.map((c: any) => {
                     const totalPaid = companyPayments
-                      .filter((p) => p.contractorId === c.id && p.status !== "VOID")
-                      .reduce((s, p) => s + p.amountCents, 0)
+                      .filter((p: any) => p.contractors?.id === c.id && p.status !== "VOID")
+                      .reduce((s: number, p: any) => s + p.amount_cents, 0)
+                    const displayName = c.business_name || `${c.first_name} ${c.last_name}`
                     return (
                       <TableRow key={c.id}>
                         <TableCell>
                           <Link href={`/contractors/${c.id}`} className="font-medium text-foreground hover:underline">
-                            {getContractorName(c)}
+                            {displayName}
                           </Link>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{c.email}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="font-mono text-xs">{c.tinMasked}</Badge>
+                          <Badge variant="outline" className="font-mono text-xs">{c.tin_masked}</Badge>
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums text-foreground">
                           {formatCents(totalPaid)}
@@ -210,17 +225,15 @@ export default function CompanyDetailPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {companyPayments.map((p) => {
-                    const contractor = getContractorById(p.contractorId)
+                  {companyPayments.map((p: any) => {
+                    const cName = p.contractors ? (p.contractors.business_name || `${p.contractors.first_name} ${p.contractors.last_name}`) : "Unknown"
                     return (
                       <TableRow key={p.id}>
-                        <TableCell className="text-muted-foreground">{p.paymentDate}</TableCell>
-                        <TableCell className="font-medium text-foreground">
-                          {contractor ? getContractorName(contractor) : "Unknown"}
-                        </TableCell>
+                        <TableCell className="text-muted-foreground">{p.payment_date}</TableCell>
+                        <TableCell className="font-medium text-foreground">{cName}</TableCell>
                         <TableCell className="text-muted-foreground">{p.memo}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">
-                          {p.checkNumber ?? "-"}
+                          {p.check_number ?? "-"}
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className={statusColors[p.status]}>
@@ -228,7 +241,7 @@ export default function CompanyDetailPage({
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums text-foreground">
-                          {formatCents(p.amountCents)}
+                          {formatCents(p.amount_cents)}
                         </TableCell>
                       </TableRow>
                     )
@@ -253,14 +266,14 @@ export default function CompanyDetailPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {companyExpenses.map((e) => (
+                  {companyExpenses.map((e: any) => (
                     <TableRow key={e.id}>
-                      <TableCell className="text-muted-foreground">{e.expenseDate}</TableCell>
+                      <TableCell className="text-muted-foreground">{e.expense_date}</TableCell>
                       <TableCell className="font-medium text-foreground">{e.vendor}</TableCell>
                       <TableCell className="text-muted-foreground">{e.category}</TableCell>
                       <TableCell className="text-muted-foreground">{e.method}</TableCell>
                       <TableCell className="text-right font-medium tabular-nums text-foreground">
-                        {formatCents(e.amountCents)}
+                        {formatCents(e.amount_cents)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -271,89 +284,66 @@ export default function CompanyDetailPage({
         </TabsContent>
 
         <TabsContent value="settings" className="mt-4">
-          <CompanySettings company={company} />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm text-foreground">Check Settings</CardTitle>
+                <CardDescription>Configure check layout and numbering</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label>Check Layout</Label>
+                  <Select defaultValue={company.check_layout_type}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="top">Top Check (standard)</SelectItem>
+                      <SelectItem value="3-per-page">3-Per-Page</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Starting Check Number</Label>
+                  <Input type="number" defaultValue={company.check_start_number} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label>Print Offset X (mm)</Label>
+                    <Input type="number" defaultValue={company.print_offset_x} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label>Print Offset Y (mm)</Label>
+                    <Input type="number" defaultValue={company.print_offset_y} />
+                  </div>
+                </div>
+                <Button type="button">Save Settings</Button>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm text-foreground">Company Information</CardTitle>
+                <CardDescription>Update company details</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label>Company Name</Label>
+                  <Input defaultValue={company.name} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Bank Name</Label>
+                  <Input defaultValue={company.bank_name || ""} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Phone</Label>
+                  <Input defaultValue={company.phone || ""} />
+                </div>
+                <Button type="button">Update Company</Button>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
-    </div>
-  )
-}
-
-function CompanySettings({ company }: { company: Company }) {
-  const [layout, setLayout] = useState(company.checkLayoutType)
-  const [offsetX, setOffsetX] = useState(company.printOffsetX.toString())
-  const [offsetY, setOffsetY] = useState(company.printOffsetY.toString())
-  const [startNum, setStartNum] = useState(company.checkStartNumber.toString())
-
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm text-foreground">Check Settings</CardTitle>
-          <CardDescription>Configure check layout and numbering</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label>Check Layout</Label>
-            <Select value={layout} onValueChange={(v) => setLayout(v as "top" | "3-per-page")}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="top">Top Check (standard)</SelectItem>
-                <SelectItem value="3-per-page">3-Per-Page</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Starting Check Number</Label>
-            <Input
-              type="number"
-              value={startNum}
-              onChange={(e) => setStartNum(e.target.value)}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label>Print Offset X (mm)</Label>
-              <Input
-                type="number"
-                value={offsetX}
-                onChange={(e) => setOffsetX(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label>Print Offset Y (mm)</Label>
-              <Input
-                type="number"
-                value={offsetY}
-                onChange={(e) => setOffsetY(e.target.value)}
-              />
-            </div>
-          </div>
-          <Button type="button">Save Settings</Button>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm text-foreground">Company Information</CardTitle>
-          <CardDescription>Update company details</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label>Company Name</Label>
-            <Input defaultValue={company.name} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Bank Name</Label>
-            <Input defaultValue={company.bankName} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Phone</Label>
-            <Input defaultValue={company.phone} />
-          </div>
-          <Button type="button">Update Company</Button>
-        </CardContent>
-      </Card>
     </div>
   )
 }
