@@ -41,7 +41,7 @@ export async function createPaymentAction(data: PaymentFormData) {
             contractor_id: v.contractor_id,
             amount_cents: amountCents,
             payment_date: v.payment_date,
-            method: "CHECK",
+            method: (v as any).method ?? "CHECK",
             status: "DRAFT",
             memo: v.memo,
             category: v.category,
@@ -181,5 +181,44 @@ export async function clearPaymentAction(paymentId: string, companyId: string) {
     })
 
     revalidatePath("/payments")
+    return { success: true }
+}
+
+export async function deletePaymentAction(paymentId: string, companyId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: "Not authenticated" }
+
+    // Only allow deleting DRAFT or VOID payments
+    const { data: payment } = await supabase
+        .from("payments")
+        .select("status")
+        .eq("id", paymentId)
+        .single()
+
+    if (!payment) return { error: "Payment not found" }
+    if (payment.status === "PRINTED" || payment.status === "CLEARED") {
+        return { error: "Cannot delete a printed or cleared payment. Void it first." }
+    }
+
+    const { error } = await supabase
+        .from("payments")
+        .delete()
+        .eq("id", paymentId)
+
+    if (error) return { error: error.message }
+
+    await writeAuditLog({
+        actorId: user.id,
+        actorEmail: user.email ?? null,
+        action: "DELETE_PAYMENT",
+        entityType: "Payment",
+        entityId: paymentId,
+        companyId,
+        meta: { status: payment.status },
+    })
+
+    revalidatePath("/payments")
+    revalidatePath("/dashboard")
     return { success: true }
 }

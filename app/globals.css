@@ -136,52 +136,8 @@
   }
 }
 
-/* ── Print styles ─────────────────────────────────────────── */
-@media print {
-  /* Hide everything by default */
-  body > * {
-    display: none !important;
-  }
-
-  /* Show only the check wrapper */
-  .check-print-wrapper {
-    display: block !important;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: auto !important;
-    border: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background: white !important;
-  }
-
-  /* The check body itself */
-  #check-body {
-    display: block !important;
-    width: 8.5in !important;
-    max-width: 8.5in !important;
-    aspect-ratio: auto !important;
-    border: none !important;
-    box-shadow: none !important;
-    margin: 0 !important;
-    padding: 0.25in 0.35in !important;
-    font-family: Georgia, serif !important;
-    color: #000 !important;
-    background: white !important;
-  }
-
-  /* Force all text inside check to be black */
-  #check-body * {
-    color: #000 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* Page settings */
-  @page {
-    size: letter landscape;
-    margin: 0;
-  }
+/* ── Print iframe (check printing) ───────────────────────── */
+/* The iframe is injected by reprint-check-button.tsx with its own styles */
+#check-print-frame {
+  display: none;
 }

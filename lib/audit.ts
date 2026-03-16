@@ -6,6 +6,7 @@ type AuditAction =
     | "PRINT_CHECK"
     | "VOID_PAYMENT"
     | "CLEAR_PAYMENT"
+    | "DELETE_PAYMENT"
     | "CREATE_CONTRACTOR"
     | "UPDATE_CONTRACTOR"
     | "CREATE_COMPANY"

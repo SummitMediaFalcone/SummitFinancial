@@ -8,8 +8,15 @@ export async function GET() {
         .select(`
             id, company_id, contractor_id, amount_cents, payment_date,
             status, memo, category, check_number, created_at,
-            contractors (first_name, last_name, business_name),
-            companies (name)
+            contractors (
+                first_name, last_name, business_name,
+                address_line1, address_line2, address_city, address_state, address_zip
+            ),
+            companies (
+                id, name,
+                address_line1, address_line2, address_city, address_state, address_zip,
+                print_offset_x, print_offset_y, check_layout_type
+            )
         `)
         .order("payment_date", { ascending: false })
         .limit(500)

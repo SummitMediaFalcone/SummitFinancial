@@ -21,7 +21,7 @@ export default async function ContractorDetailPage({
         id, amount_cents, payment_date, check_number, status, memo, category,
         companies (
           id, name, address_line1, address_line2, address_city,
-          address_state, address_zip, print_offset_x, print_offset_y
+          address_state, address_zip, print_offset_x, print_offset_y, check_layout_type
         )
       )
     `)

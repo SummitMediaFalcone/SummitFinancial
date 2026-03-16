@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState, useTransition } from "react"
 import {
     Plus, Search, Loader2, MoreHorizontal, DollarSign,
-    Printer, CheckCircle2, Clock, Ban, TrendingUp, Receipt,
+    Printer, CheckCircle2, Clock, Ban, TrendingUp, Receipt, Trash2,
+    Zap, ArrowLeftRight, CreditCard,
 } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -19,7 +19,8 @@ import {
 import { useCompany } from "@/lib/company-context"
 import { formatCents, getContractorDisplayName } from "@/lib/utils"
 import { NewPaymentFlow } from "@/components/new-payment-flow"
-import { voidPaymentAction, clearPaymentAction } from "@/app/actions/payments"
+import { voidPaymentAction, clearPaymentAction, deletePaymentAction } from "@/app/actions/payments"
+import { ReprintCheckButton } from "@/app/(app)/contractors/[id]/reprint-check-button"
 
 interface Payment {
     id: string
@@ -27,19 +28,50 @@ interface Payment {
     contractor_id: string
     amount_cents: number
     payment_date: string
+    method: string
     status: "DRAFT" | "PRINTED" | "VOID" | "CLEARED"
     memo: string
     category: string
     check_number: number | null
-    contractors: { first_name: string; last_name: string; business_name: string | null } | null
-    companies: { name: string } | null
+    contractors: {
+        first_name: string
+        last_name: string
+        business_name: string | null
+        address_line1: string
+        address_line2: string | null
+        address_city: string
+        address_state: string
+        address_zip: string
+    } | null
+    companies: {
+        id: string
+        name: string
+        address_line1: string
+        address_line2: string | null
+        address_city: string
+        address_state: string
+        address_zip: string
+        print_offset_x: number
+        print_offset_y: number
+        check_layout_type: string | null
+    } | null
 }
 
-const STATUS_CONFIG = {
-    DRAFT:   { label: "Draft",   dot: "#94a3b8", badge: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300", icon: <Clock className="size-3" /> },
-    PRINTED: { label: "Printed", dot: "#6366f1", badge: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400", icon: <Printer className="size-3" /> },
-    CLEARED: { label: "Cleared", dot: "#10b981", badge: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400", icon: <CheckCircle2 className="size-3" /> },
-    VOID:    { label: "Void",    dot: "#ef4444", badge: "bg-red-50 text-red-500 dark:bg-red-950 dark:text-red-400 line-through", icon: <Ban className="size-3" /> },
+const STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string; icon: React.ReactNode }> = {
+    DRAFT:   { label: "Draft",   dot: "#94a3b8", badge: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",           icon: <Clock className="size-3" /> },
+    PRINTED: { label: "Printed", dot: "#6366f1", badge: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400",         icon: <Printer className="size-3" /> },
+    CLEARED: { label: "Cleared", dot: "#10b981", badge: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400",     icon: <CheckCircle2 className="size-3" /> },
+    VOID:    { label: "Void",    dot: "#ef4444", badge: "bg-red-50 text-red-500 dark:bg-red-950 dark:text-red-400",                    icon: <Ban className="size-3" /> },
+}
+
+const METHOD_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+    CHECK:  { label: "Check",        icon: <Printer className="size-3" />,        color: "text-indigo-500" },
+    ZELLE:  { label: "Zelle",        icon: <Zap className="size-3" />,            color: "text-violet-500" },
+    WIRE:   { label: "Wire",         icon: <ArrowLeftRight className="size-3" />, color: "text-amber-500" },
+    ACH:    { label: "ACH",          icon: <ArrowLeftRight className="size-3" />, color: "text-blue-500" },
+    STRIPE: { label: "Stripe",       icon: <CreditCard className="size-3" />,     color: "text-purple-500" },
+    CASH:   { label: "Cash",         icon: <DollarSign className="size-3" />,     color: "text-emerald-500" },
+    OTHER:  { label: "Other",        icon: <Receipt className="size-3" />,        color: "text-muted-foreground" },
 }
 
 const STAT_STYLES = [
@@ -84,9 +116,8 @@ export function PaymentsClient() {
         return true
     }), [base, statusFilter, search])
 
-    // ── KPI stats ──────────────────────────────────────────────
-    const nonVoid = base.filter(p => p.status !== "VOID")
     const now = new Date()
+    const nonVoid = base.filter(p => p.status !== "VOID")
     const paidThisMonth = nonVoid
         .filter(p => { const d = new Date(p.payment_date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() })
         .reduce((s, p) => s + p.amount_cents, 0)
@@ -97,15 +128,15 @@ export function PaymentsClient() {
     const voidCount = base.filter(p => p.status === "VOID").length
 
     const stats = [
-        { label: "Paid This Month",  value: formatCents(paidThisMonth), sub: "Non-void",        icon: <DollarSign className="size-5" /> },
-        { label: "Total YTD",        value: formatCents(totalYTD),       sub: `${now.getFullYear()}`,  icon: <TrendingUp className="size-5" /> },
-        { label: "Open Checks",      value: String(openChecks),          sub: "Draft or printed", icon: <Printer className="size-5" /> },
-        { label: "Voided",           value: String(voidCount),           sub: "All time",         icon: <Ban className="size-5" /> },
+        { label: "Paid This Month",  value: formatCents(paidThisMonth), sub: "Non-void",         icon: <DollarSign className="size-5" /> },
+        { label: "Total YTD",        value: formatCents(totalYTD),       sub: `${now.getFullYear()}`, icon: <TrendingUp className="size-5" /> },
+        { label: "Open / Uncleared", value: String(openChecks),          sub: "Draft or printed", icon: <Printer className="size-5" /> },
+        { label: "Voided",           value: String(voidCount),           sub: "All time",          icon: <Ban className="size-5" /> },
     ]
 
     function handleVoid(p: Payment) {
         startTransition(async () => {
-            const reason = prompt("Reason for voiding this check:") ?? "Voided by user"
+            const reason = prompt("Reason for voiding:") ?? "Voided by user"
             const result = await voidPaymentAction(p.id, p.company_id, reason)
             if (result.error) alert(result.error)
             else await loadPayments()
@@ -120,13 +151,22 @@ export function PaymentsClient() {
         })
     }
 
+    function handleDelete(p: Payment) {
+        startTransition(async () => {
+            if (!confirm(`Delete this ${formatCents(p.amount_cents)} payment? This cannot be undone.`)) return
+            const result = await deletePaymentAction(p.id, p.company_id)
+            if (result.error) alert(result.error)
+            else await loadPayments()
+        })
+    }
+
     return (
         <div className="flex flex-col gap-6">
             {/* ── Header ─────────────────────────────────────── */}
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Payments</h1>
-                    <p className="text-sm text-muted-foreground">Contractor payment ledger & check management</p>
+                    <p className="text-sm text-muted-foreground">Contractor payments — Check, Zelle, Wire, ACH, Stripe & more</p>
                 </div>
                 <Button onClick={() => setShowNewPayment(true)}>
                     <Plus className="mr-2 size-4" /> New Payment
@@ -154,7 +194,7 @@ export function PaymentsClient() {
                 </div>
             )}
 
-            {/* ── Search + status filter pills ───────────────── */}
+            {/* ── Search + filter pills ───────────────────────── */}
             <div className="flex flex-wrap items-center gap-3">
                 <div className="relative min-w-[200px] max-w-sm flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -199,8 +239,14 @@ export function PaymentsClient() {
                         <div className="flex flex-col divide-y divide-border">
                             {filtered.map(p => {
                                 const cfg = STATUS_CONFIG[p.status] ?? STATUS_CONFIG.DRAFT
+                                const methodCfg = METHOD_CONFIG[p.method] ?? METHOD_CONFIG.OTHER
                                 const name = p.contractors ? getContractorDisplayName(p.contractors) : "Unknown"
                                 const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
+                                const canDelete = p.status === "DRAFT" || p.status === "VOID"
+                                const canClear = p.status === "PRINTED"
+                                const canVoid = p.status === "DRAFT" || p.status === "PRINTED"
+                                const isCheck = p.method === "CHECK" || !p.method
+
                                 return (
                                     <div key={p.id} className="flex items-center gap-4 px-6 py-4 hover:bg-accent/30 transition-colors group">
                                         {/* Avatar */}
@@ -223,10 +269,11 @@ export function PaymentsClient() {
                                             {new Date(p.payment_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                                         </span>
 
-                                        {/* Check # */}
-                                        {p.check_number && (
-                                            <span className="hidden md:block text-xs font-mono text-muted-foreground">#{p.check_number}</span>
-                                        )}
+                                        {/* Method badge */}
+                                        <span className={`hidden md:flex items-center gap-1 text-xs font-medium ${methodCfg.color}`}>
+                                            {methodCfg.icon}{methodCfg.label}
+                                            {p.check_number ? <span className="font-mono text-muted-foreground">#{p.check_number}</span> : null}
+                                        </span>
 
                                         {/* Status */}
                                         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 ${cfg.badge}`}>
@@ -238,27 +285,75 @@ export function PaymentsClient() {
                                             {formatCents(p.amount_cents)}
                                         </span>
 
-                                        {/* Actions */}
-                                        {p.status !== "VOID" && p.status !== "CLEARED" && (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="size-8 opacity-0 group-hover:opacity-100 transition-opacity" disabled={isPending}>
-                                                        {isPending ? <Loader2 className="size-4 animate-spin" /> : <MoreHorizontal className="size-4" />}
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    {p.status === "PRINTED" && (
-                                                        <DropdownMenuItem onClick={() => handleClear(p)}>
-                                                            <CheckCircle2 className="mr-2 size-4 text-emerald-500" /> Mark Cleared
-                                                        </DropdownMenuItem>
-                                                    )}
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={() => handleVoid(p)} className="text-destructive focus:text-destructive">
-                                                        <Ban className="mr-2 size-4" /> Void Check
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                        {/* Reprint — only for check payments */}
+                                        {isCheck && p.contractors && p.companies && p.status !== "VOID" && (
+                                            <ReprintCheckButton
+                                                payment={{
+                                                    id: p.id,
+                                                    check_number: p.check_number,
+                                                    amount_cents: p.amount_cents,
+                                                    payment_date: p.payment_date,
+                                                    memo: p.memo,
+                                                    status: p.status,
+                                                }}
+                                                company={{
+                                                    id: p.companies.id,
+                                                    name: p.companies.name,
+                                                    address_line1: p.companies.address_line1,
+                                                    address_line2: p.companies.address_line2,
+                                                    address_city: p.companies.address_city,
+                                                    address_state: p.companies.address_state,
+                                                    address_zip: p.companies.address_zip,
+                                                    print_offset_x: p.companies.print_offset_x ?? 0,
+                                                    print_offset_y: p.companies.print_offset_y ?? 0,
+                                                    check_layout_type: p.companies.check_layout_type,
+                                                }}
+                                                contractor={{
+                                                    first_name: p.contractors.first_name,
+                                                    last_name: p.contractors.last_name,
+                                                    business_name: p.contractors.business_name,
+                                                    address_line1: p.contractors.address_line1,
+                                                    address_line2: p.contractors.address_line2,
+                                                    address_city: p.contractors.address_city,
+                                                    address_state: p.contractors.address_state,
+                                                    address_zip: p.contractors.address_zip,
+                                                }}
+                                            />
                                         )}
+
+                                        {/* Actions dropdown */}
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon"
+                                                    className="size-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                                    disabled={isPending}>
+                                                    {isPending ? <Loader2 className="size-4 animate-spin" /> : <MoreHorizontal className="size-4" />}
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                {canClear && (
+                                                    <DropdownMenuItem onClick={() => handleClear(p)}>
+                                                        <CheckCircle2 className="mr-2 size-4 text-emerald-500" /> Mark Cleared
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {canVoid && (
+                                                    <>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem onClick={() => handleVoid(p)} className="text-destructive focus:text-destructive">
+                                                            <Ban className="mr-2 size-4" /> Void {isCheck ? "Check" : "Payment"}
+                                                        </DropdownMenuItem>
+                                                    </>
+                                                )}
+                                                {canDelete && (
+                                                    <>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem onClick={() => handleDelete(p)} className="text-destructive focus:text-destructive">
+                                                            <Trash2 className="mr-2 size-4" /> Delete
+                                                        </DropdownMenuItem>
+                                                    </>
+                                                )}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </div>
                                 )
                             })}
