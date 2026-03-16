@@ -150,6 +150,8 @@ export interface Database {
                     tin_masked: string
                     tin_encrypted: string | null
                     w9_file_path: string | null
+                    drivers_license_path: string | null
+                    drivers_license_updated_at: string | null
                     notes: string | null
                     created_by: string | null
                     updated_by: string | null
@@ -193,6 +195,8 @@ export interface Database {
                     tin_masked?: string
                     tin_encrypted?: string | null
                     w9_file_path?: string | null
+                    drivers_license_path?: string | null
+                    drivers_license_updated_at?: string | null
                     notes?: string | null
                     updated_by?: string | null
                     updated_at?: string

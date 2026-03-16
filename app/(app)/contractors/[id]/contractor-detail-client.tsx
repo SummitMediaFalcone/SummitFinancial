@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import { formatCents, getContractorDisplayName } from "@/lib/utils"
 import { ReprintCheckButton } from "./reprint-check-button"
+import { DriversLicenseUpload } from "@/components/drivers-license-upload"
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -56,6 +57,7 @@ interface Contractor {
   tin_type: string
   tin_masked: string
   w9_file_path: string | null
+  drivers_license_path: string | null
   contractor_company_links: { companies: { id: string; name: string; dba: string | null } | null }[]
   payments: Payment[]
 }
@@ -346,6 +348,54 @@ export function ContractorDetailClient({ contractor }: ContractorDetailClientPro
                 </span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Documents ────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* W-9 status */}
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm text-foreground flex items-center gap-2">
+              <FileText className="size-4" /> Tax Documents
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center justify-between rounded-xl border border-border p-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">W-9 Form</p>
+                <p className="text-xs text-muted-foreground">Required for 1099-NEC</p>
+              </div>
+              {contractor.w9_file_path ? (
+                <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400">
+                  <CheckCircle2 className="mr-1 size-3" /> On File
+                </Badge>
+              ) : (
+                <Badge className="bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950 dark:text-amber-400">
+                  Missing
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-medium">TIN</span>
+              <span className="font-mono text-sm font-semibold text-foreground">{contractor.tin_type}: {contractor.tin_masked}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Driver's License */}
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm text-foreground flex items-center gap-2">
+              <Receipt className="size-4" /> Driver's License
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DriversLicenseUpload
+              contractorId={contractor.id}
+              currentPath={contractor.drivers_license_path}
+            />
           </CardContent>
         </Card>
       </div>
