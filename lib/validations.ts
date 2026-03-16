@@ -44,9 +44,9 @@ export type CompanyFormData = z.infer<typeof companySchema>
 // ─── Contractor ───────────────────────────────────────────────────────────────
 
 export const contractorSchema = z.object({
-    first_name: z.string().min(1, "First name is required"),
-    last_name: z.string().min(1, "Last name is required"),
-    business_name: z.string().optional(),
+    first_name: z.string().optional().default(""),
+    last_name: z.string().optional().default(""),
+    business_name: z.string().optional().default(""),
     email: z.string().email("Invalid email"),
     phone: z.string().min(7, "Phone is required"),
     address_line1: z.string().min(3, "Address is required"),
@@ -61,7 +61,23 @@ export const contractorSchema = z.object({
         .regex(/^[\d-]+$/, "TIN must contain only digits and dashes"),
     notes: z.string().optional(),
     company_ids: z.array(z.string()).min(1, "At least one company must be selected"),
+}).superRefine((data, ctx) => {
+    if (data.tin_type === "SSN") {
+        // Individual — must have first and last name
+        if (!data.first_name || data.first_name.trim().length < 1) {
+            ctx.addIssue({ code: "custom", path: ["first_name"], message: "First name is required for individuals" })
+        }
+        if (!data.last_name || data.last_name.trim().length < 1) {
+            ctx.addIssue({ code: "custom", path: ["last_name"], message: "Last name is required for individuals" })
+        }
+    } else {
+        // Business — must have business name
+        if (!data.business_name || data.business_name.trim().length < 1) {
+            ctx.addIssue({ code: "custom", path: ["business_name"], message: "Business name is required" })
+        }
+    }
 })
+
 
 export type ContractorFormData = z.infer<typeof contractorSchema>
 

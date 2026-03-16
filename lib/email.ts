@@ -28,6 +28,9 @@ function invoiceHtml({
   totalCents,
   notes,
   status,
+  paymentLink,
+  isReminder,
+  daysOverdue,
 }: {
   companyName: string
   clientName: string
@@ -41,11 +44,28 @@ function invoiceHtml({
   totalCents: number
   notes?: string | null
   status: "SENT" | "PAID"
+  paymentLink?: string | null
+  isReminder?: boolean
+  daysOverdue?: number
 }) {
   const isPaid = status === "PAID"
   const statusBadge = isPaid
     ? `<span style="background:#d1fae5;color:#065f46;padding:4px 12px;border-radius:9999px;font-size:12px;font-weight:600;">PAID</span>`
+    : isReminder
+    ? `<span style="background:#fef2f2;color:#dc2626;padding:4px 12px;border-radius:9999px;font-size:12px;font-weight:600;">OVERDUE ${daysOverdue}d</span>`
     : `<span style="background:#dbeafe;color:#1e40af;padding:4px 12px;border-radius:9999px;font-size:12px;font-weight:600;">DUE ${dueDate}</span>`
+
+  const reminderBanner = isReminder ? `
+    <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px 32px;">
+      <p style="margin:0;font-size:14px;font-weight:600;color:#dc2626;">⚠️ Payment Overdue — ${daysOverdue} day${(daysOverdue ?? 0) > 1 ? 's' : ''} past due</p>
+      <p style="margin:4px 0 0;font-size:13px;color:#7f1d1d;">Please arrange payment at your earliest convenience. Contact us if you have any questions.</p>
+    </div>` : ""
+
+  const payButton = paymentLink ? `
+    <div style="padding:24px 32px 0;text-align:center;">
+      <a href="${paymentLink}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:600;padding:14px 40px;border-radius:8px;text-decoration:none;letter-spacing:0.01em;">Pay Now — ${formatCents(totalCents)}</a>
+    </div>` : ""
+
 
   const itemRows = items.map(item => `
     <tr>
@@ -68,7 +88,7 @@ function invoiceHtml({
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
           <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName}</h1>
-          <p style="margin:4px 0 0;color:#94a3b8;font-size:13px;">${isPaid ? "Payment Receipt" : "Invoice"}</p>
+          <p style="margin:4px 0 0;color:#94a3b8;font-size:13px;">${isPaid ? "Payment Receipt" : isReminder ? "Payment Reminder" : "Invoice"}</p>
         </div>
         <div style="text-align:right;">
           <p style="margin:0;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;">Invoice</p>
@@ -77,6 +97,9 @@ function invoiceHtml({
         </div>
       </div>
     </div>
+
+    ${reminderBanner}
+    ${payButton}
 
     <!-- Billed To + Dates -->
     <div style="padding:24px 32px;display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9;">
@@ -162,6 +185,9 @@ export async function sendInvoiceEmail({
   taxCents,
   totalCents,
   notes,
+  paymentLink,
+  isReminder,
+  daysOverdue,
 }: {
   to: string
   companyName: string
@@ -175,6 +201,9 @@ export async function sendInvoiceEmail({
   taxCents: number
   totalCents: number
   notes?: string | null
+  paymentLink?: string | null
+  isReminder?: boolean
+  daysOverdue?: number
 }): Promise<{ success: boolean; error?: string }> {
   if (!resend) return { success: false, error: "Email not configured (RESEND_API_KEY missing)" }
 
@@ -183,10 +212,13 @@ export async function sendInvoiceEmail({
       from: FROM,
       replyTo: REPLY_TO,
       to,
-      subject: `Invoice ${invoiceNumber} from ${companyName} — $${(totalCents / 100).toFixed(2)} due ${dueDate}`,
+      subject: isReminder
+        ? `⚠️ Payment Overdue (${daysOverdue} days) — Invoice ${invoiceNumber} — ${formatCents(totalCents)}`
+        : `Invoice ${invoiceNumber} from ${companyName} — ${formatCents(totalCents)} due ${dueDate}`,
       html: invoiceHtml({
         companyName, clientName, invoiceNumber, issueDate, dueDate,
-        items, subtotalCents, discountCents, taxCents, totalCents, notes, status: "SENT",
+        items, subtotalCents, discountCents, taxCents, totalCents, notes,
+        status: "SENT", paymentLink, isReminder, daysOverdue,
       }),
     })
     return { success: true }

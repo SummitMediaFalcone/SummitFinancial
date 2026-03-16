@@ -18,7 +18,10 @@ import {
   Zap,
   Wallet,
   Package,
+  BarChart2,
+  Shield,
 } from "lucide-react"
+
 
 import { cn } from "@/lib/utils"
 import { useCompany } from "@/lib/company-context"
@@ -56,6 +59,8 @@ const navItems = [
   { label: "Payments", href: "/payments", icon: CreditCard },
   { label: "Expenses", href: "/expenses", icon: Receipt },
   { label: "1099 Reports", href: "/reports/1099", icon: FileText },
+  { label: "P&L Report", href: "/reports/pl", icon: BarChart2 },
+  { label: "Audit Log", href: "/reports/audit", icon: Shield },
   { label: "Settings", href: "/settings", icon: Settings },
 ]
 
