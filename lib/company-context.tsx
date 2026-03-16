@@ -7,7 +7,6 @@ import {
   useEffect,
   type ReactNode,
 } from "react"
-import { createClient } from "@/lib/supabase/client"
 import type { Database } from "@/lib/supabase/database.types"
 
 type Company = Database["public"]["Tables"]["companies"]["Row"]
@@ -18,6 +17,7 @@ interface CompanyContextValue {
   setSelectedCompanyId: (id: string | null) => void
   selectedCompanyName: string
   loading: boolean
+  reload: () => void
 }
 
 const CompanyContext = createContext<CompanyContextValue | null>(null)
@@ -26,22 +26,20 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
-    async function loadCompanies() {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("companies")
-        .select("*")
-        .order("name")
+    setLoading(true)
+    fetch("/api/companies")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setCompanies(data)
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [tick])
 
-      if (!error && data) {
-        setCompanies(data)
-      }
-      setLoading(false)
-    }
-    loadCompanies()
-  }, [])
+  const reload = () => setTick((t) => t + 1)
 
   const selectedCompanyName = selectedCompanyId
     ? (companies.find((c) => c.id === selectedCompanyId)?.name ?? "Unknown")
@@ -55,6 +53,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         setSelectedCompanyId,
         selectedCompanyName,
         loading,
+        reload,
       }}
     >
       {children}

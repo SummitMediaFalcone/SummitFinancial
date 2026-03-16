@@ -14,6 +14,18 @@ type AuditAction =
     | "UPLOAD_W9"
     | "UPLOAD_RECEIPT"
     | "EXPORT_1099"
+    | "CREATE_BILLING_CLIENT"
+    | "UPDATE_BILLING_CLIENT"
+    | "CREATE_BILLING_PRODUCT"
+    | "UPDATE_BILLING_PRODUCT"
+    | "DELETE_BILLING_PRODUCT"
+    | "CREATE_PLAN"
+    | "CREATE_INVOICE"
+    | "SEND_INVOICE"
+    | "MARK_INVOICE_PAID"
+    | "VOID_INVOICE"
+    | "CREATE_SUBSCRIPTION"
+    | "CANCEL_SUBSCRIPTION"
 
 interface WriteAuditLogParams {
     actorId: string | null

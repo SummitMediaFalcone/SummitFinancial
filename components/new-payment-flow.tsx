@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CheckPreview } from "@/components/check-preview"
-import { createClient } from "@/lib/supabase/client"
+
 import { createPaymentAction, printCheckAction } from "@/app/actions/payments"
 import type { Database } from "@/lib/supabase/database.types"
 
@@ -26,14 +26,18 @@ interface NewPaymentFlowProps {
   onComplete: () => void
 }
 
-const CATEGORIES = [
+const CATEGORY_SUGGESTIONS = [
+  "AT&T Telecom Commission",
   "Consulting",
-  "Electrical",
   "Design",
+  "Electrical",
   "IT Services",
   "Labor",
   "Maintenance",
+  "Marketing Services",
   "Materials",
+  "Telecom Sales",
+  "Website Retainer",
   "Other",
 ]
 
@@ -59,22 +63,26 @@ export function NewPaymentFlow({ onComplete }: NewPaymentFlowProps) {
   const [paymentId, setPaymentId] = useState<string | null>(null)
   const [checkNumber, setCheckNumber] = useState<number | null>(null)
 
-  const supabase = createClient()
-
   useEffect(() => {
     async function load() {
-      const [{ data: comps }, { data: cons }, { data: lnks }] =
-        await Promise.all([
-          supabase.from("companies").select("*").order("name"),
-          supabase.from("contractors").select("*").order("last_name"),
-          supabase.from("contractor_company_links").select("*"),
-        ])
-      if (comps) setCompanies(comps)
-      if (cons) setContractors(cons)
-      if (lnks) setLinks(lnks)
+      const [compsRes, consRes] = await Promise.all([
+        fetch("/api/companies").then((r) => r.json()),
+        fetch("/api/contractors").then((r) => r.json()),
+      ])
+      if (Array.isArray(compsRes)) setCompanies(compsRes)
+      if (Array.isArray(consRes)) {
+        setContractors(consRes)
+        // Build links from the nested contractor data
+        const lnks: Link[] = []
+        for (const c of consRes) {
+          for (const l of (c.contractor_company_links ?? [])) {
+            lnks.push({ contractor_id: c.id, company_id: l.company_id } as Link)
+          }
+        }
+        setLinks(lnks)
+      }
     }
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const company = companies.find((c) => c.id === companyId) ?? null
@@ -143,10 +151,10 @@ export function NewPaymentFlow({ onComplete }: NewPaymentFlowProps) {
           <div key={s.num} className="flex items-center gap-2">
             <div
               className={`flex size-7 items-center justify-center rounded-full text-xs font-medium ${step > s.num
+                ? "bg-primary text-primary-foreground"
+                : step === s.num
                   ? "bg-primary text-primary-foreground"
-                  : step === s.num
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
+                  : "bg-muted text-muted-foreground"
                 }`}
             >
               {step > s.num ? <Check className="size-3.5" /> : s.num}
@@ -253,19 +261,20 @@ export function NewPaymentFlow({ onComplete }: NewPaymentFlowProps) {
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <Label>Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category…" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="category-input">Category / Purpose</Label>
+            <Input
+              id="category-input"
+              list="category-suggestions"
+              placeholder="Type anything, e.g. AT&T Telecom Commission…"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              autoComplete="off"
+            />
+            <datalist id="category-suggestions">
+              {CATEGORY_SUGGESTIONS.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
           </div>
           <div className="flex flex-col gap-2">
             <Label>Memo</Label>

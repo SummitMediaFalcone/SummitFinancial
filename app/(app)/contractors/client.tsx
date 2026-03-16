@@ -7,15 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+    Table, TableBody, TableCell, TableHead,
+    TableHeader, TableRow,
 } from "@/components/ui/table"
 import { useCompany } from "@/lib/company-context"
-import { createClient } from "@/lib/supabase/client"
 import { formatCents, getContractorDisplayName } from "@/lib/utils"
 import { NewContractorDialog } from "./new-contractor-dialog"
 
@@ -28,7 +23,7 @@ interface Contractor {
     tin_type: string
     tin_masked: string
     w9_file_path: string | null
-    contractor_company_links: { companies: { name: string } | null }[]
+    contractor_company_links: { company_id: string; companies: { name: string } | null }[]
     payments: { amount_cents: number; status: string }[]
 }
 
@@ -38,60 +33,37 @@ export function ContractorsClient() {
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState("")
 
-    const supabase = createClient()
-
     async function loadContractors() {
         setLoading(true)
-
-        // Using a more structured query to get nested relationships
-        let query = supabase
-            .from("contractors")
-            .select(`
-        id, first_name, last_name, business_name, email, tin_type, tin_masked, w9_file_path,
-        contractor_company_links (
-          company_id,
-          companies (name)
-        ),
-        payments (amount_cents, status)
-      `)
-            .order("first_name")
-
-        const { data, error } = await query
-        if (error) {
-            console.error(error)
+        try {
+            const res = await fetch("/api/contractors")
+            const data = await res.json()
+            if (Array.isArray(data)) setContractors(data)
+        } catch (e) {
+            console.error(e)
+        } finally {
             setLoading(false)
-            return
         }
-
-        // Client-side mapping + filtering if needed
-        let result = (data as unknown as any[]) || []
-
-        if (selectedCompanyId) {
-            result = result.filter(c =>
-                c.contractor_company_links?.some((link: any) => link.company_id === selectedCompanyId)
-            )
-        }
-
-        setContractors(result)
-        setLoading(false)
     }
 
-    useEffect(() => {
-        loadContractors()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedCompanyId])
+    useEffect(() => { loadContractors() }, [])
 
     const filtered = useMemo(() => {
-        return contractors.filter((c) => {
-            const name = getContractorDisplayName(c)
-            const matchesSearch =
-                !search ||
-                name.toLowerCase().includes(search.toLowerCase()) ||
-                c.email.toLowerCase().includes(search.toLowerCase())
-
-            return matchesSearch
-        })
-    }, [contractors, search])
+        let list = contractors
+        if (selectedCompanyId) {
+            list = list.filter((c) =>
+                c.contractor_company_links?.some((l) => l.company_id === selectedCompanyId)
+            )
+        }
+        if (search) {
+            const q = search.toLowerCase()
+            list = list.filter((c) =>
+                getContractorDisplayName(c).toLowerCase().includes(q) ||
+                c.email.toLowerCase().includes(q)
+            )
+        }
+        return list
+    }, [contractors, selectedCompanyId, search])
 
     return (
         <div className="flex flex-col gap-6">
@@ -102,7 +74,7 @@ export function ContractorsClient() {
                         Manage independent contractor records and W-9 files
                     </p>
                 </div>
-                <NewContractorDialog activeCompanyId={selectedCompanyId} />
+                <NewContractorDialog activeCompanyId={selectedCompanyId} onSuccess={loadContractors} />
             </div>
 
             <div className="flex items-center gap-3">
@@ -118,7 +90,7 @@ export function ContractorsClient() {
             </div>
 
             <Card>
-                <CardContent className="p-0">
+                <CardContent className="p-0 overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -141,13 +113,13 @@ export function ContractorsClient() {
                                 ))
                             ) : filtered.map((c) => {
                                 const linkedCompanyNames = c.contractor_company_links
-                                    ?.map((l: any) => l.companies?.name?.split(" ")[0])
+                                    ?.map((l) => l.companies?.name?.split(" ")[0])
                                     .filter(Boolean)
                                     .join(", ")
 
                                 const totalPaid = c.payments
-                                    ?.filter((p: any) => p.status !== "VOID")
-                                    .reduce((s: number, p: any) => s + p.amount_cents, 0) || 0
+                                    ?.filter((p) => p.status !== "VOID")
+                                    .reduce((s, p) => s + p.amount_cents, 0) || 0
 
                                 return (
                                     <TableRow key={c.id}>
@@ -156,11 +128,7 @@ export function ContractorsClient() {
                                                 href={`/contractors/${c.id}`}
                                                 className="font-medium text-foreground hover:underline"
                                             >
-                                                {getContractorDisplayName({
-                                                    first_name: c.first_name,
-                                                    last_name: c.last_name,
-                                                    business_name: c.business_name,
-                                                })}
+                                                {getContractorDisplayName(c)}
                                             </Link>
                                             {c.business_name && (
                                                 <p className="text-xs text-muted-foreground">
@@ -179,12 +147,11 @@ export function ContractorsClient() {
                                         </TableCell>
                                         <TableCell>
                                             {c.w9_file_path ? (
-                                                <Badge variant="secondary" className="bg-success/10 text-success">
-                                                    <FileText className="mr-1 size-3" />
-                                                    On file
+                                                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600">
+                                                    <FileText className="mr-1 size-3" />On file
                                                 </Badge>
                                             ) : (
-                                                <Badge variant="secondary" className="bg-warning/10 text-warning-foreground">
+                                                <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600">
                                                     Missing
                                                 </Badge>
                                             )}
@@ -198,7 +165,9 @@ export function ContractorsClient() {
                             {!loading && filtered.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                                        No contractors found.
+                                        {contractors.length === 0
+                                            ? "No contractors yet. Add one to get started."
+                                            : "No contractors match your filter."}
                                     </TableCell>
                                 </TableRow>
                             )}

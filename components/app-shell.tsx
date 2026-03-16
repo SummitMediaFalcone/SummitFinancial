@@ -14,6 +14,10 @@ import {
   ChevronDown,
   LogOut,
   Loader2,
+  RefreshCw,
+  Zap,
+  Wallet,
+  Package,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -53,6 +57,15 @@ const navItems = [
   { label: "Expenses", href: "/expenses", icon: Receipt },
   { label: "1099 Reports", href: "/reports/1099", icon: FileText },
   { label: "Settings", href: "/settings", icon: Settings },
+]
+
+const billingNavItems = [
+  { label: "Billing Overview", href: "/billing", icon: Wallet },
+  { label: "Invoices", href: "/billing/invoices", icon: FileText },
+  { label: "Clients", href: "/billing/clients", icon: Users },
+  { label: "Subscriptions", href: "/billing/subscriptions", icon: RefreshCw },
+  { label: "Plans", href: "/billing/plans", icon: Zap },
+  { label: "Products & Services", href: "/billing/products", icon: Package },
 ]
 
 function AppSidebar({ userEmail }: { userEmail?: string | null }) {
@@ -120,7 +133,7 @@ function AppSidebar({ userEmail }: { userEmail?: string | null }) {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>Finance</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
@@ -130,6 +143,31 @@ function AppSidebar({ userEmail }: { userEmail?: string | null }) {
                     isActive={
                       pathname === item.href ||
                       pathname.startsWith(item.href + "/")
+                    }
+                    tooltip={item.label}
+                  >
+                    <Link href={item.href}>
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Billing</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {billingNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={
+                      pathname === item.href ||
+                      (item.href !== "/billing" && pathname.startsWith(item.href))
                     }
                     tooltip={item.label}
                   >
@@ -198,16 +236,19 @@ function AppSidebar({ userEmail }: { userEmail?: string | null }) {
 
 function AppHeader() {
   const pathname = usePathname()
+  const allNavItems = [...navItems, ...billingNavItems]
   const pageTitle =
-    navItems.find(
-      (i) => pathname === i.href || pathname.startsWith(i.href + "/")
-    )?.label ?? "Summit Financial OS"
+    // Longest match wins (so /billing/invoices beats /billing)
+    allNavItems
+      .filter((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
+      .sort((a, b) => b.href.length - a.href.length)[0]?.label
+    ?? "Summit Financial OS"
 
   return (
-    <header className="flex h-14 items-center gap-3 border-b bg-card px-4">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-card px-4">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-6" />
-      <h1 className="text-sm font-semibold text-foreground">{pageTitle}</h1>
+      <h1 className="text-sm font-semibold text-foreground truncate">{pageTitle}</h1>
     </header>
   )
 }
@@ -223,9 +264,9 @@ export function AppShell({
     <CompanyProvider>
       <SidebarProvider>
         <AppSidebar userEmail={userEmail} />
-        <SidebarInset>
+        <SidebarInset className="min-w-0">
           <AppHeader />
-          <div className="flex-1 overflow-auto p-6">{children}</div>
+          <div className="flex-1 overflow-auto p-4 sm:p-6">{children}</div>
         </SidebarInset>
       </SidebarProvider>
     </CompanyProvider>

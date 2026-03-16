@@ -7,34 +7,20 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+    Select, SelectContent, SelectItem,
+    SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+    Table, TableBody, TableCell, TableHead,
+    TableHeader, TableRow,
 } from "@/components/ui/table"
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+    Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+    DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { createClient } from "@/lib/supabase/client"
 import { useCompany } from "@/lib/company-context"
 import { formatCents, getContractorDisplayName } from "@/lib/utils"
 import { NewPaymentFlow } from "@/components/new-payment-flow"
@@ -69,37 +55,31 @@ export function PaymentsClient() {
     const [statusFilter, setStatusFilter] = useState("all")
     const [showNewPayment, setShowNewPayment] = useState(false)
     const [isPending, startTransition] = useTransition()
-    const supabase = createClient()
 
     async function loadPayments() {
         setLoading(true)
-        let query = supabase
-            .from("payments")
-            .select(
-                "id, company_id, contractor_id, amount_cents, payment_date, status, memo, category, check_number, contractors(first_name, last_name, business_name), companies(name)"
-            )
-            .order("payment_date", { ascending: false })
-
-        if (selectedCompanyId) query = query.eq("company_id", selectedCompanyId)
-
-        const { data } = await query
-        setPayments((data as unknown as Payment[]) ?? [])
-        setLoading(false)
+        try {
+            const res = await fetch("/api/payments")
+            const data = await res.json()
+            if (Array.isArray(data)) setPayments(data)
+        } catch (e) {
+            console.error(e)
+        } finally {
+            setLoading(false)
+        }
     }
 
-    useEffect(() => {
-        loadPayments()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedCompanyId])
+    useEffect(() => { loadPayments() }, [])
 
     const filtered = payments.filter((p) => {
-        const matchesStatus = statusFilter === "all" || p.status === statusFilter
-        const name = p.contractors ? getContractorDisplayName(p.contractors) : ""
-        const matchesSearch =
-            !search ||
-            name.toLowerCase().includes(search.toLowerCase()) ||
-            p.memo.toLowerCase().includes(search.toLowerCase())
-        return matchesStatus && matchesSearch
+        if (selectedCompanyId && p.company_id !== selectedCompanyId) return false
+        if (statusFilter !== "all" && p.status !== statusFilter) return false
+        if (search) {
+            const q = search.toLowerCase()
+            const name = p.contractors ? getContractorDisplayName(p.contractors) : ""
+            if (!name.toLowerCase().includes(q) && !p.memo.toLowerCase().includes(q)) return false
+        }
+        return true
     })
 
     function handleVoid(payment: Payment) {
@@ -129,8 +109,7 @@ export function PaymentsClient() {
                     </p>
                 </div>
                 <Button onClick={() => setShowNewPayment(true)}>
-                    <Plus className="mr-2 size-4" />
-                    New Payment
+                    <Plus className="mr-2 size-4" />New Payment
                 </Button>
             </div>
 
@@ -160,7 +139,7 @@ export function PaymentsClient() {
             </div>
 
             <Card>
-                <CardContent className="p-0">
+                <CardContent className="p-0 overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -194,27 +173,20 @@ export function PaymentsClient() {
                                         </TableCell>
                                         <TableCell>
                                             <span className="font-medium text-foreground">
-                                                {p.contractors
-                                                    ? getContractorDisplayName(p.contractors)
-                                                    : "—"}
+                                                {p.contractors ? getContractorDisplayName(p.contractors) : "—"}
                                             </span>
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
                                                 <span className="text-sm text-muted-foreground">{p.memo}</span>
-                                                <span className="text-xs text-muted-foreground/70">
-                                                    {p.category}
-                                                </span>
+                                                <span className="text-xs text-muted-foreground/70">{p.category}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="font-mono text-muted-foreground">
                                             {p.check_number ?? "—"}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge
-                                                variant="secondary"
-                                                className={statusColors[p.status] ?? ""}
-                                            >
+                                            <Badge variant="secondary" className={statusColors[p.status] ?? ""}>
                                                 {p.status}
                                             </Badge>
                                         </TableCell>
@@ -226,11 +198,9 @@ export function PaymentsClient() {
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button variant="ghost" size="icon" disabled={isPending}>
-                                                            {isPending ? (
-                                                                <Loader2 className="size-4 animate-spin" />
-                                                            ) : (
-                                                                <MoreHorizontal className="size-4" />
-                                                            )}
+                                                            {isPending
+                                                                ? <Loader2 className="size-4 animate-spin" />
+                                                                : <MoreHorizontal className="size-4" />}
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
@@ -255,11 +225,10 @@ export function PaymentsClient() {
                             )}
                             {!loading && filtered.length === 0 && (
                                 <TableRow>
-                                    <TableCell
-                                        colSpan={8}
-                                        className="text-center py-8 text-muted-foreground"
-                                    >
-                                        No payments found.
+                                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                                        {payments.length === 0
+                                            ? "No payments yet. Click 'New Payment' to get started."
+                                            : "No payments match your filter."}
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -269,7 +238,7 @@ export function PaymentsClient() {
             </Card>
 
             <Dialog open={showNewPayment} onOpenChange={setShowNewPayment}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-full max-w-2xl sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-lg">
                     <DialogHeader>
                         <DialogTitle>New Payment</DialogTitle>
                     </DialogHeader>

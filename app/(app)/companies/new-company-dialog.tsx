@@ -1,21 +1,19 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
+    Dialog, DialogContent, DialogDescription,
+    DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createCompanyAction } from "@/app/actions/companies"
 
 export function NewCompanyDialog() {
+    const router = useRouter()
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -28,8 +26,8 @@ export function NewCompanyDialog() {
 
         const result = await createCompanyAction({
             name: formData.get("name") as string,
-            dba: formData.get("dba") as string,
-            ein: formData.get("ein") as string,
+            dba: (formData.get("dba") as string) || undefined,
+            ein: (formData.get("ein") as string) || undefined,
             phone: formData.get("phone") as string,
             address_line1: formData.get("address") as string,
             address_city: formData.get("city") as string,
@@ -46,6 +44,7 @@ export function NewCompanyDialog() {
         } else {
             setOpen(false)
             setLoading(false)
+            router.refresh()
         }
     }
 
@@ -57,12 +56,10 @@ export function NewCompanyDialog() {
                     Add Company
                 </Button>
             </DialogTrigger>
-            <DialogContent aria-describedby={undefined}>
+            <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Add New Company</DialogTitle>
-                    <DialogDescription>
-                        Add a new company entity to your account.
-                    </DialogDescription>
+                    <DialogDescription>Add a new company entity to your account.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     {error && (
@@ -80,7 +77,7 @@ export function NewCompanyDialog() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="ein">EIN</Label>
+                            <Label htmlFor="ein">EIN (optional)</Label>
                             <Input id="ein" name="ein" placeholder="XX-XXXXXXX" />
                         </div>
                         <div className="flex flex-col gap-2">

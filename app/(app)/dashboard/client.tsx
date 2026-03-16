@@ -3,27 +3,12 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
-    DollarSign,
-    Users,
-    FileCheck,
-    AlertCircle,
-    Plus,
-    UserPlus,
-    Receipt,
-    FileText,
-    ArrowUpRight,
-    TrendingUp,
+    DollarSign, Users, FileCheck, AlertCircle,
+    Plus, UserPlus, Receipt, FileText, ArrowUpRight, TrendingUp,
 } from "lucide-react"
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { createClient } from "@/lib/supabase/client"
 import { useCompany } from "@/lib/company-context"
 import { formatCents, getContractorDisplayName } from "@/lib/utils"
 
@@ -52,29 +37,21 @@ export function DashboardClient() {
     const { selectedCompanyId } = useCompany()
     const [payments, setPayments] = useState<Payment[]>([])
     const [loading, setLoading] = useState(true)
-    const supabase = createClient()
 
     useEffect(() => {
-        async function load() {
-            setLoading(true)
-            let query = supabase
-                .from("payments")
-                .select(
-                    "id, company_id, contractor_id, amount_cents, payment_date, status, memo, check_number, created_at, contractors(first_name, last_name, business_name), companies(name)"
-                )
-                .order("created_at", { ascending: false })
-                .limit(100)
-
-            if (selectedCompanyId) {
-                query = query.eq("company_id", selectedCompanyId)
-            }
-
-            const { data } = await query
-            setPayments((data as unknown as Payment[]) ?? [])
-            setLoading(false)
-        }
-        load()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        setLoading(true)
+        fetch("/api/payments")
+            .then((r) => r.json())
+            .then((data) => {
+                if (Array.isArray(data)) {
+                    const filtered = selectedCompanyId
+                        ? data.filter((p: Payment) => p.company_id === selectedCompanyId)
+                        : data
+                    setPayments(filtered)
+                }
+            })
+            .catch(console.error)
+            .finally(() => setLoading(false))
     }, [selectedCompanyId])
 
     const now = new Date()
@@ -116,9 +93,7 @@ export function DashboardClient() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Paid This Month
-                        </CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Paid This Month</CardTitle>
                         <DollarSign className="size-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -126,34 +101,25 @@ export function DashboardClient() {
                             {loading ? "—" : formatCents(paidThisMonth)}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                            <TrendingUp className="inline-block size-3 mr-1" />
-                            Current billing period
+                            <TrendingUp className="inline-block size-3 mr-1" />Current billing period
                         </p>
                     </CardContent>
                 </Card>
-
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Paid YTD
-                        </CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Paid YTD</CardTitle>
                         <DollarSign className="size-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-foreground">
                             {loading ? "—" : formatCents(paidYTD)}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Non-void payments {currentYear}
-                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">Non-void payments {currentYear}</p>
                     </CardContent>
                 </Card>
-
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            {"Contractors > $600"}
-                        </CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">{"Contractors > $600"}</CardTitle>
                         <Users className="size-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -161,26 +127,20 @@ export function DashboardClient() {
                             {loading ? "—" : contractorsOver600}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                            <FileCheck className="inline-block size-3 mr-1" />
-                            1099-NEC required
+                            <FileCheck className="inline-block size-3 mr-1" />1099-NEC required
                         </p>
                     </CardContent>
                 </Card>
-
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Open Checks
-                        </CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Open Checks</CardTitle>
                         <AlertCircle className="size-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-foreground">
                             {loading ? "—" : openChecks}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Draft or printed, not cleared
-                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">Draft or printed, not cleared</p>
                     </CardContent>
                 </Card>
             </div>
@@ -195,26 +155,22 @@ export function DashboardClient() {
                     <CardContent className="flex flex-col gap-2">
                         <Button asChild className="justify-start">
                             <Link href="/payments?new=true">
-                                <Plus className="mr-2 size-4" />
-                                New Payment
+                                <Plus className="mr-2 size-4" />New Payment
                             </Link>
                         </Button>
                         <Button variant="secondary" asChild className="justify-start">
                             <Link href="/contractors?new=true">
-                                <UserPlus className="mr-2 size-4" />
-                                Add Contractor
+                                <UserPlus className="mr-2 size-4" />Add Contractor
                             </Link>
                         </Button>
                         <Button variant="secondary" asChild className="justify-start">
                             <Link href="/expenses?new=true">
-                                <Receipt className="mr-2 size-4" />
-                                Add Expense
+                                <Receipt className="mr-2 size-4" />Add Expense
                             </Link>
                         </Button>
                         <Button variant="secondary" asChild className="justify-start">
                             <Link href="/reports/1099">
-                                <FileText className="mr-2 size-4" />
-                                1099 Reports
+                                <FileText className="mr-2 size-4" />1099 Reports
                             </Link>
                         </Button>
                     </CardContent>
@@ -229,8 +185,7 @@ export function DashboardClient() {
                         </div>
                         <Button variant="ghost" size="sm" asChild>
                             <Link href="/payments">
-                                View all
-                                <ArrowUpRight className="ml-1 size-3" />
+                                View all <ArrowUpRight className="ml-1 size-3" />
                             </Link>
                         </Button>
                     </CardHeader>
@@ -238,31 +193,20 @@ export function DashboardClient() {
                         <div className="flex flex-col gap-3">
                             {loading
                                 ? Array.from({ length: 3 }).map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="h-14 rounded-lg border bg-muted/30 animate-pulse"
-                                    />
+                                    <div key={i} className="h-14 rounded-lg border bg-muted/30 animate-pulse" />
                                 ))
                                 : recent.map((p) => (
-                                    <div
-                                        key={p.id}
-                                        className="flex items-center justify-between rounded-lg border bg-card p-3"
-                                    >
+                                    <div key={p.id} className="flex items-center justify-between rounded-lg border bg-card p-3">
                                         <div className="flex flex-col gap-0.5">
                                             <span className="text-sm font-medium text-foreground">
-                                                {p.contractors
-                                                    ? getContractorDisplayName(p.contractors)
-                                                    : "Unknown"}
+                                                {p.contractors ? getContractorDisplayName(p.contractors) : "Unknown"}
                                             </span>
                                             <span className="text-xs text-muted-foreground">
                                                 {p.companies?.name} · {p.memo}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <Badge
-                                                variant="secondary"
-                                                className={statusColors[p.status] ?? ""}
-                                            >
+                                            <Badge variant="secondary" className={statusColors[p.status] ?? ""}>
                                                 {p.status}
                                             </Badge>
                                             <span className="text-sm font-semibold tabular-nums text-foreground">
@@ -270,7 +214,8 @@ export function DashboardClient() {
                                             </span>
                                         </div>
                                     </div>
-                                ))}
+                                ))
+                            }
                             {!loading && recent.length === 0 && (
                                 <p className="text-sm text-muted-foreground text-center py-8">
                                     No payments yet. Create your first payment to get started.

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus } from "lucide-react"
+import { Plus, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -21,8 +21,15 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { createContractorAction } from "@/app/actions/contractors"
+import { useCompany } from "@/lib/company-context"
 
-export function NewContractorDialog({ activeCompanyId }: { activeCompanyId?: string | null }) {
+interface Props {
+    activeCompanyId?: string | null
+    onSuccess?: () => void
+}
+
+export function NewContractorDialog({ activeCompanyId, onSuccess }: Props) {
+    const { selectedCompanyName } = useCompany()
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -34,7 +41,6 @@ export function NewContractorDialog({ activeCompanyId }: { activeCompanyId?: str
         setError(null)
         const formData = new FormData(e.currentTarget)
 
-        // The form natively assumes we just assign to the currently active UI company
         const companyIds = activeCompanyId ? [activeCompanyId] : []
 
         const result = await createContractorAction({
@@ -58,6 +64,7 @@ export function NewContractorDialog({ activeCompanyId }: { activeCompanyId?: str
         } else {
             setOpen(false)
             setLoading(false)
+            onSuccess?.()
         }
     }
 
@@ -77,6 +84,20 @@ export function NewContractorDialog({ activeCompanyId }: { activeCompanyId?: str
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                    {/* Company link indicator */}
+                    <div className="flex flex-col gap-1.5">
+                        <Label>Linked Company</Label>
+                        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">
+                            <Building2 className="size-4 text-muted-foreground shrink-0" />
+                            <span className="font-medium text-foreground">{selectedCompanyName}</span>
+                            {!activeCompanyId && (
+                                <span className="ml-auto text-xs text-amber-600 font-medium">
+                                    ⚠ Select a company from the top bar to link this contractor
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
                     {error && (
                         <div className="rounded-md bg-destructive/15 p-3 text-sm font-semibold text-destructive">
                             {error}
