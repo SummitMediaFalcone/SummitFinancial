@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table"
 import { createClient } from "@/lib/supabase/server"
 import { formatCents, getContractorDisplayName } from "@/lib/utils"
+import { ReprintCheckButton } from "./reprint-check-button"
 
 const statusColors: Record<string, string> = {
   DRAFT: "bg-muted text-muted-foreground",
@@ -35,7 +36,7 @@ export default async function ContractorDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  // Fetch contractor heavily joined with companies and payments
+  // Fetch contractor with companies and payments
   const { data: contractor, error } = await supabase
     .from("contractors")
     .select(`
@@ -44,11 +45,15 @@ export default async function ContractorDetailPage({
         companies (id, name, dba)
       ),
       payments (
-        id, amount_cents, payment_date, check_number, status, memo,
-        companies (id, name)
+        id, amount_cents, payment_date, check_number, status, memo, category,
+        companies (
+          id, name, address_line1, address_line2, address_city,
+          address_state, address_zip, print_offset_x, print_offset_y
+        )
       )
     `)
     .eq("id", id)
+    .order("payment_date", { referencedTable: "payments", ascending: false })
     .single()
 
   if (error || !contractor) {
@@ -210,16 +215,17 @@ export default async function ContractorDetailPage({
                 <TableHead>Check #</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {allPayments.map((p: any) => (
                 <TableRow key={p.id}>
-                  <TableCell className="text-muted-foreground">{p.payment_date}</TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">{p.payment_date}</TableCell>
                   <TableCell className="text-foreground">{p.companies?.name ?? "Unknown"}</TableCell>
                   <TableCell className="text-muted-foreground">{p.memo}</TableCell>
                   <TableCell className="font-mono text-muted-foreground">
-                    {p.check_number ?? "-"}
+                    {p.check_number ? `#${p.check_number}` : "—"}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className={statusColors[p.status]}>
@@ -228,6 +234,41 @@ export default async function ContractorDetailPage({
                   </TableCell>
                   <TableCell className="text-right font-medium tabular-nums text-foreground">
                     {formatCents(p.amount_cents)}
+                  </TableCell>
+                  <TableCell>
+                    {p.companies && (
+                      <ReprintCheckButton
+                        payment={{
+                          id: p.id,
+                          check_number: p.check_number,
+                          amount_cents: p.amount_cents,
+                          payment_date: p.payment_date,
+                          memo: p.memo,
+                          status: p.status,
+                        }}
+                        company={{
+                          id: p.companies.id,
+                          name: p.companies.name,
+                          address_line1: p.companies.address_line1,
+                          address_line2: p.companies.address_line2,
+                          address_city: p.companies.address_city,
+                          address_state: p.companies.address_state,
+                          address_zip: p.companies.address_zip,
+                          print_offset_x: p.companies.print_offset_x ?? 0,
+                          print_offset_y: p.companies.print_offset_y ?? 0,
+                        }}
+                        contractor={{
+                          first_name: contractor.first_name,
+                          last_name: contractor.last_name,
+                          business_name: contractor.business_name,
+                          address_line1: contractor.address_line1,
+                          address_line2: contractor.address_line2,
+                          address_city: contractor.address_city,
+                          address_state: contractor.address_state,
+                          address_zip: contractor.address_zip,
+                        }}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
