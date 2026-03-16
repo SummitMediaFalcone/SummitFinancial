@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
     Select,
     SelectContent,
@@ -13,47 +12,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
-import { createClient } from "@/lib/supabase/client"
-
-interface AuditLog {
-    id: string
-    created_at: string
-    actor_id: string
-    actor_email: string | null
-    action: string
-    entity_type: string
-    entity_id: string
-    meta: Record<string, any> | null
-}
+import { BankAccountsManager } from "@/components/bank-accounts-manager"
 
 export function SettingsClient() {
     const [role, setRole] = useState("Admin")
-    const [logs, setLogs] = useState<AuditLog[]>([])
-    const [loading, setLoading] = useState(true)
-
-    const supabase = createClient()
-
-    useEffect(() => {
-        async function fetchLogs() {
-            const { data } = await supabase
-                .from("audit_logs")
-                .select("*")
-                .order("created_at", { ascending: false })
-                .limit(50)
-
-            if (data) setLogs(data as AuditLog[])
-            setLoading(false)
-        }
-        fetchLogs()
-    }, [])
 
     return (
         <div className="flex flex-col gap-6">
@@ -61,6 +23,9 @@ export function SettingsClient() {
                 <h2 className="text-2xl font-bold text-foreground">Settings</h2>
                 <p className="text-sm text-muted-foreground">Application and account settings</p>
             </div>
+
+            {/* Bank Accounts — full width */}
+            <BankAccountsManager />
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {/* Account */}
@@ -81,18 +46,13 @@ export function SettingsClient() {
                         <div className="flex flex-col gap-2">
                             <Label>Role</Label>
                             <Select value={role} onValueChange={setRole}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Admin">Admin</SelectItem>
                                     <SelectItem value="Finance">Finance</SelectItem>
                                     <SelectItem value="Viewer">Viewer</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <p className="text-xs text-muted-foreground">
-                                Role-based access control is a placeholder for future implementation.
-                            </p>
                         </div>
                         <Button type="button">Save Changes</Button>
                     </CardContent>
@@ -108,9 +68,7 @@ export function SettingsClient() {
                         <div className="flex flex-col gap-2">
                             <Label>Default Check Layout</Label>
                             <Select defaultValue="top">
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="top">Top Check (standard)</SelectItem>
                                     <SelectItem value="3-per-page">3-Per-Page</SelectItem>
@@ -118,24 +76,9 @@ export function SettingsClient() {
                             </Select>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label>Date Format</Label>
-                            <Select defaultValue="MM/DD/YYYY">
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                                    <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
-                                    <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="flex flex-col gap-2">
                             <Label>Fiscal Year Start</Label>
                             <Select defaultValue="january">
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="january">January</SelectItem>
                                     <SelectItem value="april">April</SelectItem>
@@ -148,67 +91,6 @@ export function SettingsClient() {
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Audit Log */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-foreground">Audit Log</CardTitle>
-                    <CardDescription>Recent activity across all companies</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Timestamp</TableHead>
-                                <TableHead>Actor</TableHead>
-                                <TableHead>Action</TableHead>
-                                <TableHead>Entity</TableHead>
-                                <TableHead>Details</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-6 text-muted-foreground animate-pulse">
-                                        Loading logs...
-                                    </TableCell>
-                                </TableRow>
-                            ) : logs.map((log) => (
-                                <TableRow key={log.id}>
-                                    <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-                                        {new Date(log.created_at).toLocaleString()}
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs text-muted-foreground">
-                                        {log.actor_email || log.actor_id.slice(0, 8)}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant="outline" className="text-xs">
-                                            {log.action}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-muted-foreground text-sm">
-                                        {log.entity_type} ({log.entity_id.slice(0, 5)})
-                                    </TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">
-                                        {log.meta
-                                            ? Object.entries(log.meta)
-                                                .map(([k, v]) => `${k}: ${v}`)
-                                                .join(", ")
-                                            : "-"}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                            {!loading && logs.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                                        No recent audit logs found.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
         </div>
     )
 }

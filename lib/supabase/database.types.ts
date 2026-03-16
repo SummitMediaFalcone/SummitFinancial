@@ -598,6 +598,48 @@ export interface Database {
                 }
                 Relationships: []
             }
+            company_bank_accounts: {
+                Row: {
+                    id: string
+                    company_id: string
+                    account_name: string
+                    bank_name: string
+                    routing_number_enc: string
+                    routing_number_masked: string
+                    account_number_enc: string
+                    account_number_masked: string
+                    account_type: string
+                    is_default: boolean
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    company_id: string
+                    account_name: string
+                    bank_name: string
+                    routing_number_enc: string
+                    routing_number_masked: string
+                    account_number_enc: string
+                    account_number_masked: string
+                    account_type?: string
+                    is_default?: boolean
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    account_name?: string
+                    bank_name?: string
+                    routing_number_enc?: string
+                    routing_number_masked?: string
+                    account_number_enc?: string
+                    account_number_masked?: string
+                    account_type?: string
+                    is_default?: boolean
+                    updated_at?: string
+                }
+                Relationships: []
+            }
         }
         Views: {
             [_ in never]: never
